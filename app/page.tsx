@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import DataImport from "@/components/data-import"
 import PriceListSelector from "@/components/price-list-selector"
 import SearchProducts from "@/components/search-products"
 import ProductTable from "@/components/product-table"
 import BudgetSummary from "@/components/budget-summary"
+import SettingsModal from "@/components/settings-modal"
+import Link from "next/link"
 import type { Product, BudgetItem } from "@/types"
 
 export default function Home() {
@@ -14,7 +17,58 @@ export default function Home() {
   const [selectedList, setSelectedList] = useState<1 | 2 | 3 | 4>(1)
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [mode, setMode] = useState<"normal" | "chinos">("normal")
+  const [showSettings, setShowSettings] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadProducts()
+  }, [])
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      const supabase = createClient()
+
+      // Try to load from Supabase first
+      const { data, error } = await supabase.from("products").select("*").limit(1000)
+
+      if (!error && data && data.length > 0) {
+        // Convert Supabase data to Product format
+        const convertedProducts: Product[] = data.map((p: any, idx: number) => ({
+          id: p.id || `${idx}`,
+          desart: p.desart,
+          familia: p.familia,
+          nsubf: p.nsubf,
+          pventa_1: Number(p.pventa_1),
+          pventa_2: Number(p.pventa_2),
+          pventa_3: Number(p.pventa_3),
+          pventa_4: Number(p.pventa_4),
+        }))
+        setProducts(convertedProducts)
+        setFilteredProducts(convertedProducts)
+        localStorage.setItem("listadoProductos", JSON.stringify(convertedProducts))
+      } else {
+        // Fallback to localStorage if Supabase fails
+        const savedProducts = localStorage.getItem("listadoProductos")
+        if (savedProducts) {
+          const data = JSON.parse(savedProducts)
+          setProducts(data)
+          setFilteredProducts(data)
+        }
+      }
+    } catch (err) {
+      console.error("Error loading products:", err)
+      // Fallback to localStorage
+      const savedProducts = localStorage.getItem("listadoProductos")
+      if (savedProducts) {
+        const data = JSON.parse(savedProducts)
+        setProducts(data)
+        setFilteredProducts(data)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDataImport = (data: Product[]) => {
     setProducts(data)
@@ -50,8 +104,7 @@ export default function Home() {
       setBudgetItems(budgetItems.filter((item) => item.id !== productId))
     } else {
       const existingItem = budgetItems.find((item) => item.id === productId)
-      const activeList = mode === "chinos" ? 4 : selectedList
-      const priceKey = `pventa_${activeList}` as keyof Product
+      const priceKey = `pventa_${selectedList}` as keyof Product
       const unitPrice = Number(product[priceKey]) || 0
 
       if (existingItem) {
@@ -70,56 +123,44 @@ export default function Home() {
     }
   }
 
-  const handleModeChange = (newMode: "normal" | "chinos") => {
-    setMode(newMode)
-    if (newMode === "chinos") {
-      setSelectedList(4)
-      setBudgetItems((prevItems) =>
-        prevItems.map((item) => {
-          const product = products.find((p) => p.id === item.id)
-          if (!product) return item
-          const unitPrice = Number(product.pventa_4) || 0
-          return { ...item, unitPrice }
-        }),
-      )
-    }
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+          <p className="text-foreground">Cargando productos...</p>
+        </div>
+      </main>
+    )
   }
 
   return (
-    <main className="min-h-screen" style={{ backgroundColor: "#fff" }}>
+    <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(228, 124, 0)" }}>
-            Generador de Presupuestos
-          </h1>
-          <p className="text-gray-600">
-            Alfonsa Distribuidora - Importa datos, selecciona cantidades y genera presupuestos
-          </p>
-        </div>
-
-        {products.length > 0 && (
-          <div className="mb-8 flex gap-3">
-            <button
-              onClick={() => handleModeChange("normal")}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                mode === "normal" ? "text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-              style={mode === "normal" ? { backgroundColor: "rgb(228, 124, 0)" } : {}}
-            >
-              🧾 Presupuestos normales
-            </button>
-            <button
-              onClick={() => handleModeChange("chinos")}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                mode === "chinos" ? "text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-              style={mode === "chinos" ? { backgroundColor: "rgb(228, 124, 0)" } : {}}
-            >
-              🛒 Clientes chinos
-            </button>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 text-foreground">Generador de Presupuestos</h1>
+            <p className="text-muted-foreground">
+              Alfonsa Distribuidora - Importa datos, selecciona cantidades y genera presupuestos
+            </p>
           </div>
-        )}
+          {products.length > 0 && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-3 rounded-lg transition-colors"
+              style={{
+                backgroundColor: "#E47C00",
+                color: "#ffffff",
+                fontSize: "18px",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#c96500")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#E47C00")}
+              title="Ajustes"
+            >
+              ⚙️
+            </button>
+          )}
+        </div>
 
         {products.length === 0 ? (
           <DataImport onDataImport={handleDataImport} />
@@ -130,13 +171,13 @@ export default function Home() {
               <div className="flex-1 min-w-0">
                 <SearchProducts searchTerm={searchTerm} onSearch={handleSearch} />
               </div>
-              {mode !== "chinos" && <PriceListSelector selectedList={selectedList} onListChange={handleListChange} />}
+              <PriceListSelector selectedList={selectedList} onListChange={handleListChange} />
             </div>
 
             {/* Products Table */}
             <ProductTable
               products={filteredProducts}
-              selectedList={mode === "chinos" ? 4 : selectedList}
+              selectedList={selectedList}
               budgetItems={budgetItems}
               onQuantityChange={handleQuantityChange}
             />
@@ -145,7 +186,7 @@ export default function Home() {
             {budgetItems.length > 0 && (
               <BudgetSummary
                 items={budgetItems}
-                mode={mode}
+                mode="normal"
                 onReset={() => {
                   setBudgetItems([])
                   setSearchTerm("")
@@ -155,20 +196,33 @@ export default function Home() {
             )}
 
             {/* New Import Button */}
-            <button
-              onClick={() => {
-                setProducts([])
-                setFilteredProducts([])
-                setBudgetItems([])
-                setSearchTerm("")
-                setMode("normal")
-              }}
-              className="w-full bg-secondary text-secondary-foreground px-4 py-3 rounded-lg font-medium hover:bg-secondary/90 transition-colors md:w-auto"
-            >
-              Importar nuevos datos
-            </button>
+            <div className="flex gap-3 flex-col md:flex-row">
+              <button
+                onClick={() => {
+                  setProducts([])
+                  setFilteredProducts([])
+                  setBudgetItems([])
+                  setSearchTerm("")
+                }}
+                className="px-4 py-3 rounded-lg font-medium transition-colors text-white"
+                style={{ backgroundColor: "#E47C00" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#c96500")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#E47C00")}
+              >
+                Importar nuevos datos
+              </button>
+              <Link
+                href="/chinos"
+                className="px-4 py-3 rounded-lg font-medium transition-colors text-white text-center"
+                style={{ backgroundColor: "#E47C00" }}
+              >
+                Acceder a Clientes Chinos
+              </Link>
+            </div>
           </div>
         )}
+
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={handleDataImport} />}
       </div>
     </main>
   )

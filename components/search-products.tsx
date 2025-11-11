@@ -14,7 +14,7 @@ export default function SearchProducts({ searchTerm, onSearch }: SearchProductsP
         placeholder="Buscar por nombre..."
         value={searchTerm}
         onChange={(e) => onSearch(e.target.value)}
-        className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-2 border border-border rounded-lg bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-600"
       />
     </div>
   )

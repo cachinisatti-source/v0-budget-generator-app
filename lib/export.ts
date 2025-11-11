@@ -124,3 +124,16 @@ export const shareViaWhatsApp = (items: BudgetItem[], total: number, mode: "norm
   }
   window.open(url, "_blank")
 }
+
+export const shareViaWhatsAppChinese = (items: BudgetItem[], total: number) => {
+  const texto = [
+    "🛒 *Pedido Alfonsa Distribuidora*",
+    "",
+    ...items.map((item) => `${item.name} x${item.quantity} - $${(item.quantity * item.unitPrice).toLocaleString()}`),
+    "",
+    `*TOTAL: $${total.toLocaleString()}*`,
+  ].join("\n")
+
+  const url = "https://wa.me/5492657334100?text=" + encodeURIComponent(texto)
+  window.open(url, "_blank")
+}
