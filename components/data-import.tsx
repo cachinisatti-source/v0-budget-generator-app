@@ -105,7 +105,10 @@ export default function DataImport({ onDataImport }: DataImportProps) {
         pventa_4: p.pventa_4,
       }))
 
-      const { error: dbError } = await supabase.from("products").insert(productsForDB)
+     const { error: dbError } = await supabase
+  .from("products")
+  .upsert(productsForDB, { onConflict: "desart" })
+
 
       if (dbError) {
         console.error("Error saving to Supabase:", dbError)
