@@ -14,4 +14,6 @@ export interface BudgetItem {
   name: string
   quantity: number
   unitPrice: number
+  familia?: string
+  nsubf?: string
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import DataImport from "@/components/data-import"
 import PriceListSelector from "@/components/price-list-selector"
@@ -9,6 +9,7 @@ import ProductTable from "@/components/product-table"
 import BudgetSummary from "@/components/budget-summary"
 import SettingsModal from "@/components/settings-modal"
 import Link from "next/link"
+import StickyBudgetFooter from "@/components/sticky-budget-footer"
 import type { Product, BudgetItem } from "@/types"
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("")
   const [showSettings, setShowSettings] = useState(false)
   const [loading, setLoading] = useState(true)
+  const summaryRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadProducts()
@@ -96,30 +98,43 @@ export default function Home() {
     )
   }
 
-  const handleQuantityChange = (productId: string, quantity: number) => {
-    const product = products.find((p) => p.id === productId)
-    if (!product) return
+  const handleQuantityChange = useCallback(
+    (productId: string, quantity: number) => {
+      const product = products.find((p) => p.id === productId)
+      if (!product) return
 
-    if (quantity === 0) {
-      setBudgetItems(budgetItems.filter((item) => item.id !== productId))
-    } else {
-      const existingItem = budgetItems.find((item) => item.id === productId)
-      const priceKey = `pventa_${selectedList}` as keyof Product
-      const unitPrice = Number(product[priceKey]) || 0
-
-      if (existingItem) {
-        setBudgetItems(budgetItems.map((item) => (item.id === productId ? { ...item, quantity, unitPrice } : item)))
+      if (quantity === 0) {
+        setBudgetItems((prev) => prev.filter((item) => item.id !== productId))
       } else {
-        setBudgetItems([
-          ...budgetItems,
-          {
-            id: productId,
-            name: product.desart,
-            quantity,
-            unitPrice,
-          },
-        ])
+        const existingItem = budgetItems.find((item) => item.id === productId)
+        const priceKey = `pventa_${selectedList}` as keyof Product
+        const unitPrice = Number(product[priceKey]) || 0
+
+        if (existingItem) {
+          setBudgetItems((prev) =>
+            prev.map((item) => (item.id === productId ? { ...item, quantity, unitPrice } : item)),
+          )
+        } else {
+          setBudgetItems((prev) => [
+            ...prev,
+            {
+              id: productId,
+              name: product.desart,
+              quantity,
+              unitPrice,
+            },
+          ])
+        }
       }
+    },
+    [products, selectedList, budgetItems],
+  )
+
+  const handleViewSummary = () => {
+    if (summaryRef.current) {
+      setTimeout(() => {
+        summaryRef.current?.scrollIntoView({ behavior: "smooth" })
+      }, 0)
     }
   }
 
@@ -136,7 +151,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto max-w-4xl px-4 py-8 pb-32 md:pb-8">
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold mb-2 text-foreground">Generador de Presupuestos</h1>
@@ -184,18 +199,20 @@ export default function Home() {
 
             {/* Budget Summary */}
             {budgetItems.length > 0 && (
-              <BudgetSummary
-                items={budgetItems}
-                mode="normal"
-                onReset={() => {
-                  setBudgetItems([])
-                  setSearchTerm("")
-                  setFilteredProducts(products)
-                }}
-              />
+              <div ref={summaryRef}>
+                <BudgetSummary
+                  items={budgetItems}
+                  mode="normal"
+                  onReset={() => {
+                    setBudgetItems([])
+                    setSearchTerm("")
+                    setFilteredProducts(products)
+                  }}
+                />
+              </div>
             )}
 
-            {/* New Import Button */}
+            {/* Import Buttons */}
             <div className="flex gap-3 flex-col md:flex-row">
               <button
                 onClick={() => {
@@ -224,6 +241,9 @@ export default function Home() {
 
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={handleDataImport} />}
       </div>
+
+      {/* Sticky footer for mobile with total and summary button */}
+      <StickyBudgetFooter items={budgetItems} onViewSummary={handleViewSummary} />
     </main>
   )
 }
