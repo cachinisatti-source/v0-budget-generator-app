@@ -30,23 +30,36 @@ const loadProducts = async () => {
   try {
     setLoading(true)
     const supabase = createClient()
+    console.log("🚀 Intentando leer productos desde Supabase...")
 
-    console.log('🚀 Intentando leer productos desde Supabase...')
+    let allProducts: any[] = []
+    let from = 0
+    const pageSize = 1000
 
-   const { data, error } = await supabase
-  .from('products')
-  .select('*', { count: 'exact', head: false })
+    // 🚧 Trae TODO de Supabase, de a 1000 por vez
+    while (true) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .range(from, from + pageSize - 1)
 
+      if (error) {
+        console.error("❌ Error cargando desde Supabase:", error)
+        break
+      }
 
+      if (!data || data.length === 0) break
 
-    if (error) {
-      console.error('❌ Error cargando desde Supabase:', error)
-    } else {
-      console.log('📡 Datos recibidos de Supabase:', data?.length || 0)
+      allProducts = allProducts.concat(data)
+
+      if (data.length < pageSize) break // última página
+      from += pageSize
     }
 
-    if (!error && data && data.length > 0) {
-      const convertedProducts: Product[] = data.map((p: any, idx: number) => ({
+    console.log("📡 Datos recibidos de Supabase:", allProducts.length)
+
+    if (allProducts.length > 0) {
+      const convertedProducts: Product[] = allProducts.map((p: any, idx: number) => ({
         id: p.id || `${idx}`,
         desart: p.desart,
         familia: p.familia,
@@ -57,27 +70,30 @@ const loadProducts = async () => {
         pventa_4: Number(p.pventa_4),
       }))
 
-      console.log('✅ Guardando en memoria:', convertedProducts.length, 'productos')
+      console.log("✅ Guardando en memoria:", convertedProducts.length, "productos")
 
       setProducts(convertedProducts)
       setFilteredProducts(convertedProducts)
-      localStorage.setItem('listadoProductos', JSON.stringify(convertedProducts))
+
+      // 💾 Reemplaza completamente el localStorage
+      localStorage.removeItem("listadoProductos")
+      localStorage.setItem("listadoProductos", JSON.stringify(convertedProducts))
     } else {
-      console.log('💾 Cargando desde localStorage...')
-      const saved = localStorage.getItem('listadoProductos')
+      console.log("💾 Cargando desde localStorage (sin datos nuevos)")
+      const saved = localStorage.getItem("listadoProductos")
       if (saved) {
         const parsed = JSON.parse(saved)
-        console.log('💾 Productos locales:', parsed.length)
         setProducts(parsed)
         setFilteredProducts(parsed)
       }
     }
   } catch (err) {
-    console.error('Error loading products:', err)
+    console.error("Error loading products:", err)
   } finally {
     setLoading(false)
   }
 }
+
 
 
 
