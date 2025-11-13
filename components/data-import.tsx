@@ -126,6 +126,9 @@ export default function DataImport({ onDataImport }: DataImportProps) {
         data = data.map((product) => ({ ...product, stock: 0 }))
       }
 
+      // 👇 NUEVO: quedarnos solo con los productos que tienen stock > 0
+      data = data.filter((product) => (product.stock ?? 0) > 0)
+
       if (!data.length) {
         setError("No se encontraron productos en los datos")
         return
