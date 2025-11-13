@@ -109,9 +109,13 @@ export default function ProductTable({
     setExpandedCategories(newExpanded)
   }
 
+  const productsWithStock = useMemo(() => {
+    return products.filter((p) => p.stock > 0)
+  }, [products])
+
   const groupedProducts = useMemo(() => {
     const groups: Record<string, Record<string, Product[]>> = {}
-    products.forEach((product) => {
+    productsWithStock.forEach((product) => {
       if (!groups[product.familia]) {
         groups[product.familia] = {}
       }
@@ -121,7 +125,7 @@ export default function ProductTable({
       groups[product.familia][product.nsubf].push(product)
     })
     return groups
-  }, [products])
+  }, [productsWithStock])
 
   const sortedFamilias = useMemo(() => Object.keys(groupedProducts).sort(), [groupedProducts])
 
@@ -129,6 +133,14 @@ export default function ProductTable({
     return (
       <div className="bg-white rounded-lg border border-gray-300 p-8 text-center">
         <p className="text-gray-500">No se encontraron productos</p>
+      </div>
+    )
+  }
+
+  if (productsWithStock.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-300 p-8 text-center">
+        <p className="text-gray-500">No hay productos con stock disponible</p>
       </div>
     )
   }
@@ -144,12 +156,13 @@ export default function ProductTable({
               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Subfamilia</th>
               {isSearchMode && <th className="px-4 py-3 text-left text-sm font-semibold text-white">Familia</th>}
               <th className="px-4 py-3 text-right text-sm font-semibold text-white">Precio</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-white">Stock</th>
               <th className="px-4 py-3 text-center text-sm font-semibold text-white">Cantidad</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-white">Subtotal</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {products.map((product) => {
+            {productsWithStock.map((product) => {
               const quantity = getQuantity(product.id)
               const price = Number(product[priceKey]) || 0
               const subtotal = quantity * price
@@ -162,12 +175,18 @@ export default function ProductTable({
                   <td className="px-4 py-3 text-sm text-gray-600">{product.nsubf}</td>
                   {isSearchMode && <td className="px-4 py-3 text-sm text-orange-600 font-medium">{product.familia}</td>}
                   <td className="px-4 py-3 text-right font-mono text-black">${price.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-center text-sm">
+                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded font-medium">{product.stock}</span>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <input
                       type="number"
                       min="0"
+                      max={product.stock}
                       value={quantity}
-                      onChange={(e) => onQuantityChange(product.id, Number(e.target.value) || 0)}
+                      onChange={(e) =>
+                        onQuantityChange(product.id, Math.min(Number(e.target.value) || 0, product.stock))
+                      }
                       className="w-16 px-2 py-1 border border-gray-300 rounded bg-white text-black text-center focus:outline-none focus:ring-2 focus:ring-orange-600"
                     />
                   </td>
@@ -186,10 +205,10 @@ export default function ProductTable({
         {isSearchMode ? (
           // Modo búsqueda: lista global con etiquetas de familia
           <div className="divide-y divide-gray-200">
-            {products.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">No se encontraron productos</div>
+            {productsWithStock.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">No se encontraron productos con stock</div>
             ) : (
-              products.map((product) => {
+              productsWithStock.map((product) => {
                 const quantity = getQuantity(product.id)
                 const price = Number(product[priceKey]) || 0
 

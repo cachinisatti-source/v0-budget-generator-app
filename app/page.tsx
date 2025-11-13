@@ -26,76 +26,51 @@ export default function Home() {
     loadProducts()
   }, [])
 
-const loadProducts = async () => {
-  try {
-    setLoading(true)
-    const supabase = createClient()
-    console.log("🚀 Intentando leer productos desde Supabase...")
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      const supabase = createClient()
 
-    let allProducts: any[] = []
-    let from = 0
-    const pageSize = 1000
+      // Try to load from Supabase first
+      const { data, error } = await supabase.from("products").select("*").limit(1000)
 
-    // 🚧 Trae TODO de Supabase, de a 1000 por vez
-    while (true) {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .range(from, from + pageSize - 1)
-
-      if (error) {
-        console.error("❌ Error cargando desde Supabase:", error)
-        break
+      if (!error && data && data.length > 0) {
+        // Convert Supabase data to Product format
+        const convertedProducts: Product[] = data.map((p: any, idx: number) => ({
+          id: p.id || `${idx}`,
+          desart: p.desart,
+          familia: p.familia,
+          nsubf: p.nsubf,
+          pventa_1: Number(p.pventa_1),
+          pventa_2: Number(p.pventa_2),
+          pventa_3: Number(p.pventa_3),
+          pventa_4: Number(p.pventa_4),
+        }))
+        setProducts(convertedProducts)
+        setFilteredProducts(convertedProducts)
+        localStorage.setItem("listadoProductos", JSON.stringify(convertedProducts))
+      } else {
+        // Fallback to localStorage if Supabase fails
+        const savedProducts = localStorage.getItem("listadoProductos")
+        if (savedProducts) {
+          const data = JSON.parse(savedProducts)
+          setProducts(data)
+          setFilteredProducts(data)
+        }
       }
-
-      if (!data || data.length === 0) break
-
-      allProducts = allProducts.concat(data)
-
-      if (data.length < pageSize) break // última página
-      from += pageSize
-    }
-
-    console.log("📡 Datos recibidos de Supabase:", allProducts.length)
-
-    if (allProducts.length > 0) {
-      const convertedProducts: Product[] = allProducts.map((p: any, idx: number) => ({
-        id: p.id || `${idx}`,
-        desart: p.desart,
-        familia: p.familia,
-        nsubf: p.nsubf,
-        pventa_1: Number(p.pventa_1),
-        pventa_2: Number(p.pventa_2),
-        pventa_3: Number(p.pventa_3),
-        pventa_4: Number(p.pventa_4),
-      }))
-
-      console.log("✅ Guardando en memoria:", convertedProducts.length, "productos")
-
-      setProducts(convertedProducts)
-      setFilteredProducts(convertedProducts)
-
-      // 💾 Reemplaza completamente el localStorage
-      localStorage.removeItem("listadoProductos")
-      localStorage.setItem("listadoProductos", JSON.stringify(convertedProducts))
-    } else {
-      console.log("💾 Cargando desde localStorage (sin datos nuevos)")
-      const saved = localStorage.getItem("listadoProductos")
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        setProducts(parsed)
-        setFilteredProducts(parsed)
+    } catch (err) {
+      console.error("Error loading products:", err)
+      // Fallback to localStorage
+      const savedProducts = localStorage.getItem("listadoProductos")
+      if (savedProducts) {
+        const data = JSON.parse(savedProducts)
+        setProducts(data)
+        setFilteredProducts(data)
       }
+    } finally {
+      setLoading(false)
     }
-  } catch (err) {
-    console.error("Error loading products:", err)
-  } finally {
-    setLoading(false)
   }
-}
-
-
-
 
   const handleDataImport = (data: Product[]) => {
     setProducts(data)

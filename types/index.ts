@@ -7,6 +7,7 @@ export interface Product {
   pventa_2: number
   pventa_3: number
   pventa_4: number
+  stock: number
 }
 
 export interface BudgetItem {

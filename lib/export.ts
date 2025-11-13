@@ -41,7 +41,8 @@ export const generateExcel = (items: BudgetItem[], total: number, mode: "normal"
 }
 
 export const generatePDF = (items: BudgetItem[], total: number, mode: "normal" | "chinos" = "normal") => {
-  const doc = new jsPDF()
+  const doc = new jsPDF() as any
+
   const alfonsaColor = [228, 124, 0] // #E47C00
 
   // Header with Alfonsa branding
@@ -66,27 +67,30 @@ export const generatePDF = (items: BudgetItem[], total: number, mode: "normal" |
     `$${item.unitPrice.toLocaleString()}`,
     `$${(item.quantity * item.unitPrice).toLocaleString()}`,
   ])
-  ;(doc as any).autoTable({
-    head: [["Producto", "Cantidad", "Precio Unit.", "Subtotal"]],
-    body: tableData,
-    startY: 35,
-    margin: 14,
-    styles: {
-      fontSize: 9,
-      cellPadding: 4,
-      textColor: [51, 51, 51],
-    },
-    headStyles: {
-      fillColor: [...alfonsaColor],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-    },
-    alternateRowStyles: {
-      fillColor: [245, 245, 245],
-    },
-  })
 
-  const finalY = (doc as any).lastAutoTable.finalY || 50
+  if (typeof doc.autoTable === "function") {
+    doc.autoTable({
+      head: [["Producto", "Cantidad", "Precio Unit.", "Subtotal"]],
+      body: tableData,
+      startY: 35,
+      margin: 14,
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+        textColor: [51, 51, 51],
+      },
+      headStyles: {
+        fillColor: [...alfonsaColor],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+    })
+  }
+
+  const finalY = (doc.lastAutoTable?.finalY as number) || 50
 
   // Total section
   doc.setDrawColor(...alfonsaColor)

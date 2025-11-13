@@ -8,17 +8,35 @@ interface DataImportProps {
   onDataImport: (data: Product[]) => void
 }
 
+// ⬇️ FUNCIÓN PARA SUBIR EN LOTES (EVITA EL LÍMITE DE SUPABASE)
+const batchUpsertProducts = async (products: any[], batchSize = 500) => {
+  const supabase = createClient()
+
+  for (let i = 0; i < products.length; i += batchSize) {
+    const batch = products.slice(i, i + batchSize)
+
+    const { error } = await supabase
+      .from("products")
+      .upsert(batch, { onConflict: "desart" })
+
+    if (error) {
+      console.error("Error en batch:", i, error)
+      throw new Error("Error al guardar lote de productos: " + error.message)
+    }
+  }
+}
+
 export default function DataImport({ onDataImport }: DataImportProps) {
   const [textData, setTextData] = useState("")
+  const [stockData, setStockData] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const stockTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const parseTabSeparatedData = (text: string): Product[] => {
     const lines = text.trim().split("\n")
-    if (lines.length < 2) {
-      throw new Error("Se requieren al menos 2 líneas (encabezado + datos)")
-    }
+    if (lines.length < 2) throw new Error("Se requieren al menos 2 líneas (encabezado + datos)")
 
     const headers = lines[0].split("\t")
     const requiredHeaders = ["desart", "familia", "nsubf", "pventa_1", "pventa_2", "pventa_3", "pventa_4"]
@@ -26,43 +44,28 @@ export default function DataImport({ onDataImport }: DataImportProps) {
     const headerIndices: { [key: string]: number } = {}
     for (const header of requiredHeaders) {
       const index = headers.indexOf(header)
-      if (index === -1) {
-        throw new Error(`Columna requerida no encontrada: ${header}`)
-      }
+      if (index === -1) throw new Error(`Columna requerida no encontrada: ${header}`)
       headerIndices[header] = index
     }
 
     const products: Product[] = []
     for (let i = 1; i < lines.length; i++) {
-      if (lines[i].trim() === "") continue
-
+      if (!lines[i].trim()) continue
       const columns = lines[i].split("\t")
 
       const parsePrice = (value: string): number => {
         if (!value) return 0
-
-        // Remove currency symbols, spaces, and other non-numeric characters (keep only digits, dots, and commas)
         let cleaned = value.replace(/[^\d.,-]/g, "").trim()
 
         if (!cleaned) return 0
 
         if (cleaned.includes(",")) {
-          // Format: 5814,4 or 10.856,50
-          // Remove dots (thousand separators) and replace comma with dot
           cleaned = cleaned.replace(/\./g, "").replace(",", ".")
         } else if (cleaned.includes(".")) {
-          // Could be 10.856 (ten thousand) or 10.5 (ten point five)
           const parts = cleaned.split(".")
           const lastPart = parts[parts.length - 1]
-
-          if (lastPart.length === 3) {
-            // It's a thousand separator: 10.856 → 10856
-            cleaned = cleaned.replace(/\./g, "")
-          } else {
-            // It's a decimal: 10.5 → 10.5
-            // Remove dots from all but the last one (thousand separators)
-            cleaned = parts.slice(0, -1).join("") + (parts.length > 1 ? "." + lastPart : "")
-          }
+          if (lastPart.length === 3) cleaned = cleaned.replace(/\./g, "")
+          else cleaned = parts.slice(0, -1).join("") + "." + lastPart
         }
 
         const num = Number.parseFloat(cleaned)
@@ -84,17 +87,50 @@ export default function DataImport({ onDataImport }: DataImportProps) {
     return products
   }
 
+  const parseStockData = (text: string): Record<string, number> => {
+    const stockMap: Record<string, number> = {}
+    const lines = text.trim().split("\n")
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+
+      const parts = line.split(/\s+/)
+      const lastPart = parts[parts.length - 1]
+      const stockValue = Number.parseInt(lastPart)
+
+      if (isNaN(stockValue)) {
+        stockMap[line.trim()] = 0
+      } else {
+        const productName = line.substring(0, line.lastIndexOf(lastPart)).trim()
+        stockMap[productName] = stockValue
+      }
+    }
+
+    return stockMap
+  }
+
   const handleProcess = async () => {
     try {
       setError("")
       setLoading(true)
-      const data = parseTabSeparatedData(textData)
-      if (data.length === 0) {
+
+      let data = parseTabSeparatedData(textData)
+
+      if (stockData.trim()) {
+        const stockMap = parseStockData(stockData)
+        data = data.map((product) => ({
+          ...product,
+          stock: stockMap[product.desart] || 0,
+        }))
+      } else {
+        data = data.map((product) => ({ ...product, stock: 0 }))
+      }
+
+      if (!data.length) {
         setError("No se encontraron productos en los datos")
         return
       }
 
-      const supabase = createClient()
       const productsForDB = data.map((p) => ({
         desart: p.desart,
         familia: p.familia,
@@ -103,23 +139,17 @@ export default function DataImport({ onDataImport }: DataImportProps) {
         pventa_2: p.pventa_2,
         pventa_3: p.pventa_3,
         pventa_4: p.pventa_4,
+        stock: p.stock,
       }))
 
-     const { error: dbError } = await supabase
-  .from("products")
-  .upsert(productsForDB, { onConflict: "desart" })
+      // ⬇️ UPLOAD SEGURO EN LOTES
+      await batchUpsertProducts(productsForDB, 500)
 
-
-      if (dbError) {
-        console.error("Error saving to Supabase:", dbError)
-        setError("Error guardando en base de datos: " + dbError.message)
-        return
-      }
-
-      // Also save to localStorage as backup
+      // Backup local
       localStorage.setItem("listadoProductos", JSON.stringify(data))
       onDataImport(data)
       setTextData("")
+      setStockData("")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al procesar datos")
     } finally {
@@ -145,6 +175,21 @@ export default function DataImport({ onDataImport }: DataImportProps) {
         onChange={(e) => setTextData(e.target.value)}
         placeholder="Pega aquí los datos tabulados..."
         className="w-full h-40 p-4 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
+      />
+
+      <div>
+        <label className="block text-sm font-semibold text-foreground mb-2">Pega el stock (LLERENA) - Opcional</label>
+        <p className="text-sm text-muted-foreground mb-3">
+          Pega el listado de stock con el nombre del producto y cantidad. Cada línea: NOMBRE_PRODUCTO CANTIDAD
+        </p>
+      </div>
+
+      <textarea
+        ref={stockTextareaRef}
+        value={stockData}
+        onChange={(e) => setStockData(e.target.value)}
+        placeholder="Pega aquí el stock (opcional)..."
+        className="w-full h-32 p-4 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
       />
 
       {error && (
