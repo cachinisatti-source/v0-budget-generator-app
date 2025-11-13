@@ -31,7 +31,7 @@ export default function Home() {
       setLoading(true)
       const supabase = createClient()
 
-      const { data, error } = await supabase.from("products").select("*").range(0, 4999)
+      const { data, error } = await supabase.from("products").select("*").range(0, 2999)
 
       if (!error && data && data.length > 0) {
         // Convert Supabase data to Product format, including stock
