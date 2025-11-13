@@ -31,11 +31,10 @@ export default function Home() {
       setLoading(true)
       const supabase = createClient()
 
-      // Try to load from Supabase first
       const { data, error } = await supabase.from("products").select("*").limit(1000)
 
       if (!error && data && data.length > 0) {
-        // Convert Supabase data to Product format
+        // Convert Supabase data to Product format, including stock
         const convertedProducts: Product[] = data.map((p: any, idx: number) => ({
           id: p.id || `${idx}`,
           desart: p.desart,
@@ -45,6 +44,7 @@ export default function Home() {
           pventa_2: Number(p.pventa_2),
           pventa_3: Number(p.pventa_3),
           pventa_4: Number(p.pventa_4),
+          stock: Number(p.stock) || 0,
         }))
         setProducts(convertedProducts)
         setFilteredProducts(convertedProducts)
