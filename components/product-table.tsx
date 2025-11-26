@@ -46,6 +46,10 @@ const ProductRow = memo(function ProductRow({
         <span className="text-gray-600">Precio:</span>
         <span className="font-mono font-semibold text-black">${price.toLocaleString()}</span>
       </div>
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-gray-600">Stock:</span>
+        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium text-xs">{product.stock}</span>
+      </div>
       <div className="flex justify-between items-center">
         <span className="text-gray-600 text-sm">Cantidad:</span>
         <div className="flex items-center gap-2 bg-gray-100 rounded px-2 py-1">
@@ -58,12 +62,13 @@ const ProductRow = memo(function ProductRow({
           <input
             type="number"
             min="0"
+            max={product.stock}
             value={quantity}
-            onChange={(e) => onQuantityChange(product.id, Number(e.target.value) || 0)}
+            onChange={(e) => onQuantityChange(product.id, Math.min(Number(e.target.value) || 0, product.stock))}
             className="w-12 px-1 py-1 bg-transparent text-black text-center focus:outline-none font-semibold"
           />
           <button
-            onClick={() => onQuantityChange(product.id, quantity + 1)}
+            onClick={() => onQuantityChange(product.id, Math.min(quantity + 1, product.stock))}
             className="w-6 h-6 flex items-center justify-center text-orange-600 font-bold hover:bg-orange-100 rounded transition-colors active:scale-95"
           >
             +
@@ -71,9 +76,11 @@ const ProductRow = memo(function ProductRow({
         </div>
       </div>
       {quantity > 0 && (
-        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+        <div className="flex justify-between items-center pt-2 border-t border-gray-200 gap-2">
           <span className="text-xs font-medium text-black">Subtotal:</span>
-          <span className="font-mono font-semibold text-orange-600">${subtotal.toLocaleString()}</span>
+          <span className="font-mono font-semibold text-orange-600 text-sm break-words text-right">
+            ${subtotal.toLocaleString()}
+          </span>
         </div>
       )}
     </div>
